@@ -46,6 +46,11 @@ window.__ModuleLoader__.load({ id: "dsh-purge", factory: (require) => {
 			if (path.indexOf("/dsh-purge/update") !== -1) return method === "POST" ? 180000 : 45000;
 			if (path.indexOf("/dsh-purge/uninstall") !== -1) return 90000;
 			if (path.indexOf("/dsh-purge/skill") !== -1) return method === "POST" ? 120000 : 20000;
+			// status 会在"应用"期间被后端的同步落盘阻塞，默认 20s 必然被 abort，界面只会显示"读取失败: timeout"。
+			if (path.indexOf("/dsh-purge/status") !== -1) return 60000;
+			if (path.indexOf("/dsh-purge/apply") !== -1) return 240000;
+			if (path.indexOf("/dsh-purge/revert") !== -1) return 120000;
+			if (path.indexOf("/dsh-purge/restart") !== -1) return 60000;
 			return 20000;
 		}
 		function isAbortError(e) {
@@ -192,7 +197,7 @@ window.__ModuleLoader__.load({ id: "dsh-purge", factory: (require) => {
 			"status.pending": "待应用",
 			"status.unmatched": "没对上",
 			"status.skipped": "跳过",
-			"apply.hint": "点应用会把提示词框里的全文写入并打补丁，不必再点保存。待应用=原文还在。跳过=当前版本不需要或组件未安装。",
+			"apply.hint": "点应用会打补丁并把当前默认提示词挂上，框里仍是插件旧默认时自动刷到加密槽，不必再点保存。只有你另写的稿才会按框落盘。待应用=原文还在。跳过=当前版本不需要或组件未安装。",
 			"warn.noRoot": "未定位到当前宿主的 @deepseek-ai，清洗不会生效。请完全退出后再打开本宿主，在本页点「应用」。桌面端安装目录可以是任意盘符；目录名带 DeepseekHarness / DeepSeek Harness 均可。",
 			"warn.noRoot.desktop": "官方客户端的代码在 app.asar 里。点「应用」会解开并自动重启，不用另跑脚本。若一直显示还没定位，先完全退出客户端再开，再点「应用」。第三方 DSH Desktop 直接点「应用」。",
 			"unpack.restarting": "补丁已写入。点「重启」后客户端会自己重新打开。",
@@ -271,6 +276,19 @@ window.__ModuleLoader__.load({ id: "dsh-purge", factory: (require) => {
 			"rules.reset.confirm": "还原全局指令文件？规则库会保留。",
 			"rules.empty": "暂无规则",
 			"rules.pick": "选择规则",
+			"policy.title": "工作区策略",
+			"policy.strict": "严格",
+			"policy.fallback": "空位兜底",
+			"policy.always": "总是允许",
+			"policy.hint": "严格：永远剥 AGENTS.md / CLAUDE.md；空位兜底：提示词框为空时才用；总是允许：保留 DSH 原生行为",
+			"cwd.title": "本地规则（当前目录）",
+			"cwd.empty": "当前目录没有 AGENTS.md / CLAUDE.md",
+			"cwd.rescan": "重新扫描",
+			"cwd.hint": "只有提示词框为空时，被勾选的本地文件才作为兜底注入；提示词框一旦非空就不会用这些文件。",
+			"cwd.scope.cwd": "当前目录",
+			"cwd.scope.ancestor": "上级",
+			"cwd.scope.root": "项目根",
+			"cwd.no.workspace": "DSH 尚未选过工作目录，请先在 DSH 里开始一次任务再回来。",
 			"pill.current": "当前",
 			"btn.use": "启用",
 			"btn.inUse": "当前",
@@ -352,7 +370,7 @@ window.__ModuleLoader__.load({ id: "dsh-purge", factory: (require) => {
 			"patch.17": "观察策略读写放行",
 			"patch.18": "重复调用守卫禁用",
 			"patch.19": "工具结果修剪禁用",
-			"patch.21": "bash 超时 60s → 10min",
+			"patch.21": "恢复插件延长的 bash 等待",
 			"patch.22": "read 上限放宽",
 			"patch.23": "子代理深度 3 → 10",
 			"patch.24": "preset fetch 启用",
@@ -387,7 +405,7 @@ window.__ModuleLoader__.load({ id: "dsh-purge", factory: (require) => {
 			"patch.54": "交付物提示去掉多余禁止",
 			"patch.55": "每一步替换第一条系统提示",
 			"patch.56": "回退只藏被撤掉的那一轮",
-			"patch.57": "deepseek.com 系统提示走 system",
+			"patch.57": "developer role 仅限 openai/azure，第三方代理回退 system",
 			"patch.58": "回退空标记不进模型请求",
 			"patch.59": "官方 Auto Review 不再拦工具",
 			"patch.60": "官方 run_code 去掉审批教学",
@@ -401,6 +419,17 @@ window.__ModuleLoader__.load({ id: "dsh-purge", factory: (require) => {
 			"patch.68": "回退后缺 content 不中断",
 			"patch.69": "deepseek-flash 保持官方 in-history",
 			"patch.72": "Messages 的 system 用当前系统提示",
+			"patch.73": "极简 bash 去掉误留的镜像说明",
+			"patch.74": "首发前先挂默认提示词",
+			"patch.75": "回退把已完成任务收回成未开始",
+			"patch.76": "unrestricted 预设去掉身份句",
+			"patch.77": "回退标记到达时丢弃已发送消息",
+			"patch.78": "补丁文件缺失时从 .bak 恢复",
+			"patch.80": "恢复官方极简工具表",
+			"patch.81": "每一步重放完整 prompt-inject",
+			"patch.82": "主进程兜底 DSH_PROFILE=desktop",
+			"patch.83": "host 信号杀时不报错不弹对话框",
+			"patch.84": "host code=0 正常退出不报错 (消除 stopped 对话框)",
 			"status.unlocated": "未定位",
 			"status.na": "本端不需要",
 			"metric.unlocated": "还没定位到本机 Harness",
@@ -509,7 +538,7 @@ window.__ModuleLoader__.load({ id: "dsh-purge", factory: (require) => {
 			"status.pending": "Pending",
 			"status.unmatched": "No match",
 			"status.skipped": "Skipped",
-			"apply.hint": "Apply writes the prompt in the box and the patches. A separate save is unnecessary. Pending = original text still present. Skipped = not needed for this version or the component is not installed.",
+			"apply.hint": "Apply writes patches and hangs the current default prompt. A stale plugin default in the box is refreshed from the sealed slot; a separate save is unnecessary. Only a prompt you wrote yourself is kept from the box. Pending = original text still present. Skipped = not needed for this version or the component is not installed.",
 			"warn.noRoot": "Could not find this host’s @deepseek-ai tree, so Apply will not patch anything. Fully quit and reopen this host, then Apply here. Desktop may live on any drive; folder names like DeepseekHarnessDesktop or DeepSeek Harness are fine.",
 			"warn.noRoot.desktop": "Official Harness keeps its code in app.asar. Apply unpacks it and restarts the app. If this page stays “not found”, fully quit the client, reopen it, then Apply again. Third-party DSH Desktop: just Apply.",
 			"unpack.restarting": "Patches are written. Click Restart and the client opens again by itself.",
@@ -588,6 +617,19 @@ window.__ModuleLoader__.load({ id: "dsh-purge", factory: (require) => {
 			"rules.reset.confirm": "Restore global instruction files? The rule library is kept.",
 			"rules.empty": "No rules",
 			"rules.pick": "Select a rule",
+			"policy.title": "Workspace policy",
+			"policy.strict": "Strict",
+			"policy.fallback": "Fallback",
+			"policy.always": "Always on",
+			"policy.hint": "Strict: always strip AGENTS.md / CLAUDE.md. Fallback: use workspace files only when the prompt box is empty. Always on: keep DSH default behavior.",
+			"cwd.title": "Local rules (current folder)",
+			"cwd.empty": "No AGENTS.md / CLAUDE.md in this folder",
+			"cwd.rescan": "Rescan",
+			"cwd.hint": "Checked files are injected only when the prompt box is empty. A non-empty prompt box always wins.",
+			"cwd.scope.cwd": "cwd",
+			"cwd.scope.ancestor": "ancestor",
+			"cwd.scope.root": "project root",
+			"cwd.no.workspace": "DSH has not opened a workspace yet. Start a task in DSH first, then come back.",
 			"pill.current": "On",
 			"btn.use": "Enable",
 			"btn.inUse": "On",
@@ -669,7 +711,7 @@ window.__ModuleLoader__.load({ id: "dsh-purge", factory: (require) => {
 			"patch.17": "Observation policy allow R/W",
 			"patch.18": "Repeat-call guard off",
 			"patch.19": "Tool-result pruner off",
-			"patch.21": "bash timeout 60s → 10min",
+			"patch.21": "Restore plugin-raised bash wait",
 			"patch.22": "read cap raised",
 			"patch.23": "subagent depth 3 → 10",
 			"patch.24": "preset fetch on",
@@ -704,7 +746,7 @@ window.__ModuleLoader__.load({ id: "dsh-purge", factory: (require) => {
 			"patch.54": "Deliverable prompt drops extra prohibition",
 			"patch.55": "Replace the first system prompt every step",
 			"patch.56": "Rewind hides only the cut range",
-			"patch.57": "deepseek.com keeps system role",
+			"patch.57": "developer role for openai/azure only, third-party gateways use system",
 			"patch.58": "Rewind markers stay off the model request",
 			"patch.59": "Official Auto Review no longer denies tools",
 			"patch.60": "Official run_code drops approval teaching",
@@ -718,6 +760,17 @@ window.__ModuleLoader__.load({ id: "dsh-purge", factory: (require) => {
 			"patch.68": "Missing content after rewind no longer ends the turn",
 			"patch.69": "deepseek-flash keeps the official in-history flag",
 			"patch.72": "Messages system field uses the current system prompt",
+			"patch.73": "Minimal preset drops stray mirror sentence",
+			"patch.74": "Hang default prompt before first assemble",
+			"patch.75": "Rewind resets completed todos to pending",
+			"patch.76": "Unrestricted preset: strip identity sentence",
+			"patch.77": "Rewind marker drops already-sent messages",
+			"patch.78": "Restore missing overlay from .bak backup",
+			"patch.80": "Restore official minimal tool plugins",
+			"patch.81": "Replay the full prompt-inject every step",
+			"patch.82": "Fallback DSH_PROFILE=desktop in main process",
+			"patch.83": "Don't fail on signal kill (no crash dialog)",
+			"patch.84": "Don't fail on code=0 clean exit (no stopped dialog)",
 			"status.na": "Not for this host",
 			"metric.sealed": "Official client found. Apply to unpack",
 			"metric.sealed.count": "Sealed",
@@ -869,6 +922,25 @@ body[data-ds-dark-theme] .dshp-restart-card .dshp-btn-primary,body[data-ds-dark-
 .dshp-editor{display:flex;flex-direction:column;gap:10px;min-width:0;border:1px solid var(--dshp-line);border-radius:8px;background:var(--dshp-bg);padding:12px;min-height:320px}
 .dshp-editor .dshp-area{flex:1;min-height:240px}
 .dshp-editor-empty{flex:1;display:flex;align-items:center;justify-content:center;color:var(--dshp-mute);font-size:13px;min-height:160px}
+.dshp-block{padding:14px 0;border-top:1px solid var(--dshp-line)}
+.dshp-block-head{display:flex;align-items:center;gap:10px;margin:0 0 8px}
+.dshp-block-head h4{margin:0;font-family:var(--dshp-display);font-size:14px;font-weight:500;flex:1;color:var(--dshp-ink)}
+.dshp-block-hint{margin:8px 0 0;font-size:12px;line-height:1.55;color:var(--dshp-mute)}
+.dshp-policy-row{display:flex;align-items:center;gap:10px}
+.dshp-policy-row>label{font-size:12px;color:var(--dshp-mute);flex:0 0 auto}
+.dshp-cwd-path{margin:0 0 8px;font-family:var(--dshp-mono);font-size:11px;color:var(--dshp-mute);word-break:break-all;line-height:1.5}
+.dshp-cwd-list{display:flex;flex-direction:column;border:1px solid var(--dshp-line);border-radius:8px;background:var(--dshp-bg);overflow:hidden}
+.dshp-cwd-item{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-bottom:1px solid var(--dshp-line);cursor:pointer;margin:0}
+.dshp-cwd-item:last-child{border-bottom:0}
+.dshp-cwd-item:hover{background:var(--dshp-fill)}
+.dshp-cwd-item.is-on{background:var(--dshp-accent-soft)}
+.dshp-cwd-item input{margin:3px 0 0;flex:0 0 auto}
+.dshp-cwd-main{flex:1;min-width:0}
+.dshp-cwd-name{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:var(--dshp-display);font-size:13.5px;line-height:1.35;color:var(--dshp-ink)}
+.dshp-cwd-badge{font-family:var(--dshp-mono);font-size:10px;letter-spacing:.04em;text-transform:uppercase;padding:1px 7px;border-radius:99px;border:1px solid var(--dshp-line);color:var(--dshp-mute);line-height:1.6}
+.dshp-cwd-size{font-family:var(--dshp-mono);font-size:11px;color:var(--dshp-mute)}
+.dshp-cwd-sub{margin-top:3px;font-family:var(--dshp-mono);font-size:11px;color:var(--dshp-mute);word-break:break-all}
+.dshp-cwd-prev{margin-top:4px;font-size:11px;line-height:1.5;color:var(--dshp-mute);max-height:34px;overflow:hidden}
 @keyframes dshp-pulse{0%{background-position:200% 0}100%{background-position:-200% 0}}
 @media (max-width:640px){.dshp-metrics{grid-template-columns:1fr}.dshp-ruleitem{flex-wrap:wrap}.dshp-rule-ops{width:100%;justify-content:flex-end}}
 @media (prefers-reduced-motion:reduce){.dshp-btn,.dshp-bar>i{transition:none}.dshp-skel{animation:none}}
@@ -885,7 +957,7 @@ body[data-ds-dark-theme] .dshp-restart-card .dshp-btn-primary,body[data-ds-dark-
 .dshp-dock-tab.on{color:var(--dsw-alias-label-primary,var(--dshp-ink,#f2f2f2));font-weight:600;border-bottom-color:var(--dsw-alias-brand-primary,#6dbf8c);background:transparent}
 .dshp-dock-body{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;background:transparent;border-radius:0 0 12px 12px}
 .dshp-dock-body .dshp-root{max-width:none;height:100%;flex:1;min-height:0;overflow:auto;background:transparent!important;--dshp-bg:transparent;--dshp-paper:color-mix(in srgb,var(--dshp-ink) 7%,transparent);--dshp-fill:color-mix(in srgb,var(--dshp-ink) 6%,transparent);--dshp-line:color-mix(in srgb,var(--dshp-ink) 20%,transparent);--dshp-accent-soft:color-mix(in srgb,var(--dshp-accent) 22%,transparent)}
-.dshp-dock-body .dshp-panel,.dshp-dock-body .dshp-metric,.dshp-dock-body .dshp-group,.dshp-dock-body .dshp-editor,.dshp-dock-body .dshp-active,.dshp-dock-body .dshp-ask,.dshp-dock-body .dshp-create,.dshp-dock-body .dshp-rulelist,.dshp-dock-body .dshp-table,.dshp-dock-body .dshp-ruleitem{background:color-mix(in srgb,var(--dsw-alias-bg-layer-1,#f7f4ee) 74%,transparent)!important;border-color:color-mix(in srgb,var(--dsw-alias-brand-primary,#6d8f78) 32%,transparent)!important;color:var(--dshp-ink)!important;box-shadow:inset 0 1px 0 color-mix(in srgb,#fff 32%,transparent);backdrop-filter:blur(16px) saturate(1.3);-webkit-backdrop-filter:blur(16px) saturate(1.3)}
+.dshp-dock-body .dshp-panel,.dshp-dock-body .dshp-metric,.dshp-dock-body .dshp-group,.dshp-dock-body .dshp-editor,.dshp-dock-body .dshp-active,.dshp-dock-body .dshp-ask,.dshp-dock-body .dshp-create,.dshp-dock-body .dshp-rulelist,.dshp-dock-body .dshp-table,.dshp-dock-body .dshp-ruleitem,.dshp-dock-body .dshp-cwd-list,.dshp-dock-body .dshp-cwd-item{background:color-mix(in srgb,var(--dsw-alias-bg-layer-1,#f7f4ee) 74%,transparent)!important;border-color:color-mix(in srgb,var(--dsw-alias-brand-primary,#6d8f78) 32%,transparent)!important;color:var(--dshp-ink)!important;box-shadow:inset 0 1px 0 color-mix(in srgb,#fff 32%,transparent);backdrop-filter:blur(16px) saturate(1.3);-webkit-backdrop-filter:blur(16px) saturate(1.3)}
 .dshp-dock-body .dshp-field,.dshp-dock-body .dshp-area{background:color-mix(in srgb,var(--dsw-alias-bg-layer-1,#fff) 88%,transparent)!important;color:var(--dshp-ink)!important;border-color:color-mix(in srgb,var(--dsw-alias-border-l1,#8a8478) 72%,transparent)!important}
 .dshp-dock-body select.dshp-field,.dshp-dock-body .dshp-field.dshp-ver{background:var(--dsw-alias-bg-layer-1,#fff)!important;color:var(--dshp-ink)!important;color-scheme:inherit}
 .dshp-dock[data-theme="white"] select.dshp-field option,.dshp-dock[data-theme="white"] .dshp-field.dshp-ver option{background:#fff;color:#16140f}
@@ -1994,7 +2066,9 @@ body:not([data-ds-dark-theme]) .dshp-auth-ops button.primary{background:var(--ds
 
 			const loadStatus = useCallback(() => {
 				const tr = tRef.current;
-				rulesApi("status")
+				let cwd = "";
+				try { cwd = clientCurrentCwd(); } catch { /* ignore */ }
+				rulesApi("status", cwd ? { cwd: cwd } : undefined)
 					.then((d) => {
 						if (d && d.ok) setSt(d);
 						else {
@@ -2101,6 +2175,10 @@ body:not([data-ds-dark-theme]) .dshp-auth-ops button.primary{background:var(--ds
 				});
 			}
 
+			const policyValue = (st && typeof st.workspace_policy === "string") ? st.workspace_policy : "fallback";
+			const policyOptions = (st && Array.isArray(st.workspace_policies) && st.workspace_policies.length) ? st.workspace_policies : ["fallback", "strict", "always"];
+			const cwdCandidates = (st && Array.isArray(st.cwd_candidates)) ? st.cwd_candidates : [];
+			const cwdValue = (st && typeof st.cwd === "string") ? st.cwd : "";
 			return h("section", { className: "dshp-panel", "aria-label": t("rules.title") },
 				h("div", { className: "dshp-head" },
 					h("h3", { className: "dshp-title" }, t("rules.title")),
@@ -2118,6 +2196,60 @@ body:not([data-ds-dark-theme]) .dshp-auth-ops button.primary{background:var(--ds
 						}, t("rules.reset")),
 					),
 				),
+				h("div", { className: "dshp-block" },
+					h("div", { className: "dshp-policy-row" },
+						h("label", { htmlFor: "dshp-policy-select" }, t("policy.title")),
+						h("select", {
+							id: "dshp-policy-select",
+							className: "dshp-field",
+							value: policyValue,
+							disabled: busy || !st,
+							onChange: (e) => doPost("set-policy", { policy: e.target.value }),
+						}, policyOptions.map((p) => h("option", { key: p, value: p }, t("policy." + p)))),
+					),
+					h("p", { className: "dshp-block-hint" }, t("policy.hint")),
+				),
+				h("div", { className: "dshp-block" },
+					h("div", { className: "dshp-block-head" },
+						h("h4", null, t("cwd.title")),
+						h(Btn, {
+							tiny: true,
+							disabled: busy,
+							onClick: () => {
+								let cwd = cwdValue;
+								if (!cwd) { try { cwd = clientCurrentCwd(); } catch { /* ignore */ } }
+								doPost("scan-cwd", cwd ? { cwd: cwd } : {});
+							},
+						}, t("cwd.rescan")),
+					),
+					cwdValue ? h("p", { className: "dshp-cwd-path" }, cwdValue) : null,
+					(!st || !cwdValue)
+						? h("p", { className: "dshp-empty" }, t("cwd.no.workspace"))
+						: (cwdCandidates.length === 0
+							? h("p", { className: "dshp-empty" }, t("cwd.empty"))
+							: h("div", { className: "dshp-cwd-list" }, cwdCandidates.map((item) => h("label", {
+								key: item.path,
+								className: "dshp-cwd-item" + (item.selected ? " is-on" : ""),
+							},
+								h("input", {
+									type: "checkbox",
+									checked: Boolean(item.selected),
+									disabled: busy,
+									onChange: (e) => doPost("toggle-cwd", { path: item.path, enabled: e.target.checked }),
+								}),
+								h("div", { className: "dshp-cwd-main" },
+									h("div", { className: "dshp-cwd-name" },
+										h("span", null, item.name),
+										h("span", { className: "dshp-cwd-badge" }, t("cwd.scope." + (item.scope || "cwd"))),
+										h("span", { className: "dshp-cwd-size" }, formatSize(item.size || 0)),
+									),
+									h("div", { className: "dshp-cwd-sub" }, item.path),
+									item.preview ? h("div", { className: "dshp-cwd-prev" }, item.preview) : null,
+								),
+							)))),
+					h("p", { className: "dshp-block-hint" }, t("cwd.hint")),
+				),
+				h("div", { className: "dshp-block" },
 				h("div", { className: "dshp-split" },
 					h("div", { className: "dshp-rulelist" },
 						h("div", { className: "dshp-rulebody" }, list),
@@ -2176,6 +2308,7 @@ body:not([data-ds-dark-theme]) .dshp-auth-ops button.primary{background:var(--ds
 							),
 						] : h("div", { className: "dshp-editor-empty" }, t("rules.pick")),
 					),
+				),
 				),
 			);
 		}
@@ -2878,9 +3011,10 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 		}
 
 		function scheduleComposerFill(sessionId, text, inputActions) {
-			if (!sessionId || !text || isPluginDraft(text)) return;
+			if (!sessionId || !text || isPluginDraft(text)) return () => {};
 			let stopped = false;
 			let filled = false;
+			const timers = [];
 			const tryFill = () => {
 				if (stopped) return;
 				const current = liveDraft(sessionId, inputActions);
@@ -2896,13 +3030,18 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 				hostSetDraft(sessionId, text);
 				filled = true;
 			};
-			for (const ms of FILL_DELAYS) window.setTimeout(tryFill, ms);
+			for (const ms of FILL_DELAYS) timers.push(window.setTimeout(tryFill, ms));
+			return () => {
+				stopped = true;
+				for (const t of timers) { try { window.clearTimeout(t); } catch { /* ignore */ } }
+			};
 		}
 
 		function scheduleEchoClear(sessionId, inputActions) {
-			if (!sessionId) return;
+			if (!sessionId) return () => {};
 			let last = "";
 			let stopped = false;
+			const timers = [];
 			const tryClear = () => {
 				if (stopped || !last) return;
 				const current = String(liveDraft(sessionId, inputActions) || "").trim();
@@ -2917,11 +3056,16 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 				stopped = true;
 			};
 			apiJson("/dsh-purge/last-user?sessionId=" + encodeURIComponent(sessionId)).then((data) => {
+				if (stopped) return;
 				last = String(data?.text || "").trim();
 				if (!last || isPluginDraft(last)) return;
 				tryClear();
-				for (const ms of [0, 50, 180, 400]) window.setTimeout(tryClear, ms);
+				for (const ms of [0, 50, 180, 400]) timers.push(window.setTimeout(tryClear, ms));
 			}).catch(() => {});
+			return () => {
+				stopped = true;
+				for (const t of timers) { try { window.clearTimeout(t); } catch { /* ignore */ } }
+			};
 		}
 
 		async function dropInheritedQueue(sessions, sessionId) {
@@ -3893,7 +4037,20 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(req),
-    }).then((res) => res.json())
+    }).then(async (res) => {
+      const text = await res.text().catch(() => '')
+      let data = null
+      try { data = text ? JSON.parse(text) : null } catch {
+        return { ok: false, error: res.status + ' non-json: ' + String(text).slice(0, 120) }
+      }
+      if (!res.ok) {
+        return Object.assign({}, data || {}, {
+          ok: false,
+          error: (data && (data.error || data.message)) || (res.status + ' ' + res.statusText),
+        })
+      }
+      return data
+    })
 
     let ui = { open: true, tab: 'assets' }
     const subs = new Set()
@@ -5413,7 +5570,8 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
           a.href = url
           a.download = 'report-' + String(label || 'score').replace(/[^\w.\-]/g, '_') + '.md'
           a.click()
-          URL.revokeObjectURL(url)
+          /* 立刻 revoke 会在部分浏览器里让 click 启动的下载断流,延后一拍 */
+          setTimeout(() => { try { URL.revokeObjectURL(url) } catch { /* ignore */ } }, 1000)
           setMsg({ ok: '已下载：' + label })
         } catch (e) { setMsg({ err: '下载失败：' + ((e && e.message) || e) }) }
       }
@@ -7008,6 +7166,17 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
       const [open, setOpen] = React.useState(false)
       const [msg, setMsg] = React.useState(null)
       const [countdown, setCountdown] = React.useState(0)
+      const countdownRef = React.useRef(null)
+      const clearCountdown = React.useCallback(() => {
+        if (countdownRef.current) { try { clearInterval(countdownRef.current) } catch { /* ignore */ } }
+        countdownRef.current = null
+      }, [])
+      React.useEffect(() => () => clearCountdown(), [clearCountdown])
+      const closeModal = React.useCallback(() => {
+        clearCountdown()
+        setCountdown(0)
+        setOpen(false)
+      }, [clearCountdown])
 
       const check = (silent) => {
         if (!silent) setBusy(true)
@@ -7038,9 +7207,10 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
           setMsg({ ok: '已安装 ' + (r.installed || '') + '，正在重启当前宿主…' })
           /* 重启会断开这个页面：倒计时提示用户稍后刷新 */
           setCountdown(6)
-          const t = setInterval(() => {
+          clearCountdown()
+          countdownRef.current = setInterval(() => {
             setCountdown((n) => {
-              if (n <= 1) { clearInterval(t); window.location.reload(); return 0 }
+              if (n <= 1) { clearCountdown(); window.location.reload(); return 0 }
               return n - 1
             })
           }, 1000)
@@ -7072,7 +7242,7 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
               title: '重新检查 npm 上的最新版本',
             }, busy ? '检查中…' : '检查更新'),
         open
-          ? h('div', { className: 'rt-modal', 'aria-hidden': 'true', onClick: () => setOpen(false) },
+          ? h('div', { className: 'rt-modal', 'aria-hidden': 'true', onClick: closeModal },
               h('div', { className: 'rt-modal-box', onClick: (e) => e.stopPropagation() },
                 h('h4', { style: { marginTop: 0 } }, '更新 RedTeam 模式'),
                 h('div', { className: 'rt-kv' }, h('b', null, '当前版本'), h('span', null, current || '未知')),
@@ -7098,7 +7268,7 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
                   ? h('div', { className: 'rt-foot' }, '宿主正在重启，' + countdown + ' 秒后自动刷新页面…')
                   : null,
                 h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 10 } },
-                  h('button', { className: 'rt-btn', onClick: () => setOpen(false) }, '关闭'),
+                  h('button', { className: 'rt-btn', onClick: closeModal }, '关闭'),
                   h('button', {
                     className: 'rt-btn rt-btn-primary',
                     disabled: busy || blockers.length > 0 || mode === 'dev',
@@ -7521,6 +7691,7 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 		let drillGrantGen = 0;
 		let drillGrantPosting = 0;
 		let drillGrantState = { ready: false, granted: false };
+		let drillSyncRetryTimer = null;
 		const AUTH_LEGAL_HTML = "<h3>严正法律免责与合规使用声明</h3>\r\n    <p>本声明在进入演练台前必须全文阅读。本项目是非营利开源项目，遵守国家法律法规及所在平台的规范，仅供学习与研究、技术参考。严禁任何主体把本项目用于商业售卖、付费倒卖或黑灰产牟利。</p>\r\n    <p>开发者坚决反对并严禁任何形式的违法犯罪，绝不支持、不鼓励、不协助未授权网络攻击、漏洞利用、数据窃取、非法侵入计算机信息系统，或生成违法违禁内容。任何将本项目用于违法犯罪的行为，均与开发者无关，由行为人依法独立承担全部法律责任。不得以科研、教学、测试、演示或内部学习为由规避下列条款。</p>\r\n    <h3>1. 本仓库不含违法内容</h3>\r\n    <p>dsh-purge 发布的代码、文档、补丁与默认提示词不是木马、后门、未授权渗透工具、勒索软件、撞库脚本，也不是针对公网或第三方系统的攻击载荷。项目不提供违法内容，也不教唆、组织、协助实施违法犯罪。</p>\r\n    <h3>2. 本机操作不构成对外授权</h3>\r\n    <p>应用补丁、写入、回滚、卸载，都在本机文件和本机进程内完成。这些操作不对任何公网主机或未授权系统进行扫描、探测、入侵或攻击发包，也不得把本机当作跳板。</p>\r\n    <p>插件若开启检测更新，仅可能访问本插件自己的 GitHub 仓库以核对版本。该访问与对第三方系统的网络攻击无关，不能被解释为对外渗透的授权。</p>\r\n    <h3>3. 允许使用的范围</h3>\r\n    <p>只允许用在你能证明有权处理的环境：本人有权管理的本机官方 Harness；离线的本地合成靶标；所有者已经出具合法书面授权的网络安全演练靶场；合规实验室里的受控环境。书面授权要能对应具体目标、时间和范围。只填写一个单位名称，或只有口头说法，不构成授权。</p>\r\n    <p>未经所有者合法书面授权的目标、公网在线系统、生产业务，以及能源、交通、水利、金融、公共服务、电子政务等关键信息基础设施，都不得作为演练对象。</p>\r\n    <h3>4. 必须遵守的法律，按条、款</h3>\r\n    <p>《中华人民共和国刑法》第二百八十五条第一款：禁止违反国家规定，侵入国家事务、国防建设、尖端科学技术领域的计算机信息系统。</p>\r\n    <p>同条第二款：禁止侵入前款规定以外的计算机信息系统，或者用其他技术手段，获取该系统中存储、处理或者传输的数据，或者对该系统实施非法控制。</p>\r\n    <p>同条第三款：禁止提供专门用于侵入、非法控制计算机信息系统的程序、工具；明知他人实施侵入、非法控制而为其提供程序、工具，同样禁止。</p>\r\n    <p>第二百八十六条第一款：禁止对计算机信息系统功能进行删除、修改、增加、干扰，造成系统不能正常运行。</p>\r\n    <p>同条第二款：禁止对系统中存储、处理或者传输的数据和应用程序进行删除、修改、增加。</p>\r\n    <p>同条第三款：禁止故意制作、传播计算机病毒等破坏性程序，影响计算机系统正常运行。</p>\r\n    <p>第二百八十七条：禁止利用计算机实施金融诈骗、盗窃、贪污、挪用公款、窃取国家秘密或者其他犯罪。</p>\r\n    <p>第二百八十七条之一第一款第（一）项：禁止设立用于实施诈骗、传授犯罪方法、制作或者销售违禁物品、管制物品等违法犯罪活动的网站、通讯群组。</p>\r\n    <p>同款第（二）项：禁止发布有关制作或者销售毒品、枪支、淫秽物品等违禁物品、管制物品或者其他违法犯罪的信息。</p>\r\n    <p>同款第（三）项：禁止为实施诈骗等违法犯罪活动发布信息。</p>\r\n    <p>第二百八十七条之二：禁止明知他人利用信息网络实施犯罪，仍为其提供技术支持，或者提供广告推广、支付结算等帮助。</p>\r\n    <p>第二百五十三条之一第一款、第三款：禁止向他人出售或者提供公民个人信息；禁止窃取或者以其他方法非法获取公民个人信息。</p>\r\n    <p>《中华人民共和国网络安全法》第十三条第二款：使用网络不得危害网络安全，不得利用网络从事危害国家安全、荣誉和利益，煽动颠覆国家政权、推翻社会主义制度，煽动分裂国家、破坏国家统一，宣扬恐怖主义、极端主义，宣扬民族仇恨、民族歧视，传播暴力、淫秽色情信息，编造、传播虚假信息扰乱经济秩序和社会秩序，以及侵害他人名誉、隐私、知识产权和其他合法权益等活动。</p>\r\n    <p>第十四条：禁止利用网络从事危害未成年人身心健康的活动。</p>\r\n    <p>第二十九条：禁止非法侵入他人网络、干扰他人网络正常功能、窃取网络数据；禁止提供专门用于侵入网络、干扰网络正常功能及防护措施、窃取网络数据的程序、工具；明知他人从事危害网络安全的活动，禁止为其提供技术支持、广告推广、支付结算等帮助。</p>\r\n    <p>第三十三条：公共通信和信息服务、能源、交通、水利、金融、公共服务、电子政务等关键信息基础设施实行重点保护。未获合法授权，不得侵入、干扰或破坏。</p>\r\n    <p>第四十六条：禁止窃取或者以其他非法方式获取个人信息，禁止非法出售或者非法向他人提供个人信息。</p>\r\n    <p>第四十八条：禁止设立用于实施诈骗，传授犯罪方法，制作或者销售违禁物品、管制物品等违法犯罪活动的网站、通讯群组；禁止利用网络发布涉及上述违法犯罪活动的信息。</p>\r\n    <p>第五十条：发送的电子信息、提供的应用软件不得设置恶意程序，不得含有法律、行政法规禁止发布或者传输的信息。</p>\r\n    <p>《中华人民共和国数据安全法》第八条：开展数据处理活动，不得危害国家安全、公共利益，不得损害个人、组织的合法权益。</p>\r\n    <p>第三十二条第一款：收集数据应当采取合法、正当的方式，不得窃取或者以其他非法方式获取数据。</p>\r\n    <p>同条第二款：法律、行政法规对收集、使用数据的目的和范围有规定的，只能在该目的和范围内收集、使用。</p>\r\n    <p>第五十一条：窃取或者以其他非法方式获取数据，或者因此损害个人、组织合法权益的，依照有关法律、行政法规处罚。</p>\r\n    <p>《中华人民共和国个人信息保护法》第五条：处理个人信息应当合法、正当、必要、诚信，不得通过误导、欺诈、胁迫等方式处理。</p>\r\n    <p>第六条第一款、第二款：处理个人信息应当具有明确、合理的目的，并与该目的直接相关，采取对个人权益影响最小的方式；收集限于实现处理目的的最小范围，不得过度收集。</p>\r\n    <p>第十条：禁止非法收集、使用、加工、传输他人个人信息，禁止非法买卖、提供或者公开他人个人信息；禁止从事危害国家安全、公共利益的个人信息处理活动。</p>\r\n    <p>第十三条：没有取得个人同意，也不属于订立履行合同所必需、履行法定职责、应对突发、公共利益新闻舆论、处理本人已经合法公开的信息，以及法律行政法规规定的其他情形之一的，不得处理个人信息。</p>\r\n    <p>第二十八条、第二十九条：生物识别、医疗健康、金融账户、行踪轨迹，以及不满十四周岁未成年人的个人信息，属于敏感个人信息。没有特定目的、充分必要性和严格保护措施，并且没有取得个人单独同意的，不得处理。</p>\r\n    <p>此外还须遵守其他现行有效的法律、行政法规、监管规定，以及所使用模型的服务条款与滥用政策。</p>\r\n    <h3>5. 据此禁止的方向</h3>\r\n    <p>未授权进入。禁止把没有书面授权的单位、域名、地址、公网系统、生产业务或关键信息基础设施登记为靶标，禁止对其扫描、探测、侵入、控制或发包。对应刑法第二百八十五条第一款、第二款，网络安全法第二十九条、第三十三条。</p>\r\n    <p>破坏与恶意程序。禁止删除、修改、增加、干扰他人系统功能或其中的数据、应用程序；禁止制作、传播病毒、勒索程序或其他破坏性程序；禁止在信息或软件中设置恶意程序。对应刑法第二百八十六条第一款至第三款，网络安全法第五十条。</p>\r\n    <p>工具与帮助。禁止把本项目或本机提供给他人，用于侵入、非法控制或窃取数据；禁止明知对方在实施网络犯罪，仍提供程序、工具、技术支持、广告推广或支付结算。对应刑法第二百八十五条第三款、第二百八十七条之二，网络安全法第二十九条。</p>\r\n    <p>数据。禁止窃取、非法收集、超范围使用、泄露、出售或向他人提供业务数据、账号、口令和其他受保护数据。对应数据安全法第八条、第三十二条、第五十一条。</p>\r\n    <p>个人信息。禁止非法收集、使用、加工、传输、买卖、提供或公开他人个人信息；禁止过度收集；禁止以误导、欺诈、胁迫方式处理；禁止擅自处理生物识别、医疗健康、金融账户、行踪轨迹和儿童个人信息。对应刑法第二百五十三条之一第一款、第三款，网络安全法第四十六条，个人信息保护法第五条、第六条、第十条、第十三条、第二十八条、第二十九条。</p>\r\n    <p>诈骗与违法信息。禁止设立或利用网站、群组实施诈骗、传授犯罪方法、制作或销售违禁物品、管制物品；禁止发布此类信息；禁止利用计算机实施诈骗、盗窃、贪污、挪用公款、窃取国家秘密。对应刑法第二百八十七条、第二百八十七条之一第一款第（一）项至第（三）项，网络安全法第四十八条。</p>\r\n    <p>内容。禁止生成或传播危害国家安全、荣誉和利益的内容，禁止煽动颠覆、分裂，禁止恐怖主义、极端主义、民族仇恨，禁止暴力、淫秽色情、赌博，禁止编造虚假信息扰乱经济秩序和社会秩序，禁止侵害名誉、隐私、知识产权，禁止危害未成年人身心健康的内容。对应网络安全法第十三条第二款、第十四条。</p>\r\n    <p>结果扩散。演练中形成的记录、资产信息和文件，只留在书面授权写明的目标和期限里，不得交给无权获知的人，也不得改作授权以外的用途。</p>\r\n    <h3>6. 责任由使用者承担</h3>\r\n    <p>本项目依据 MIT 协议按现状提供。开发者不就完整性、安全性与适用性作保证。使用者对自己的下载、部署、运行、修改、传播，以及全部输入与输出，承担独立、完全的民事、行政及刑事法律责任。作者与贡献者不承担因滥用产生的直接、间接或连带责任。</p>\r\n    <p>勾选确认的是操作者本人，不能代替没有阅读本声明的人，也不能把别人的系统说成已经授权。</p>\r\n    <h3>7. 违约即终止授权</h3>\r\n    <p>一旦用于非法攻击、恶意活动或上述任一禁止方向，使用许可自该行为发生之日起自动终止，且不可撤销。必须立即停止使用，并销毁本项目的代码、脚本与衍生数据，依法承担责任。授权终止后，演练台不得继续打开或继续使用。</p>\r\n    <h3>8. 与 DeepSeek 官方的关系</h3>\r\n    <p>本项目是独立的开源项目，与 DeepSeek 官方或其关联主体没有隶属、商业合作、授权或官方背书。文中的「官方」只表示评测对象是使用者本机安装的官方 DeepSeek Harness 软件包，不代表 DeepSeek 官方开发、认可或担保本插件。</p>\r\n    <p>文末。倒计时结束、滚到这里并勾选全部三项，才表示你以本人身份认可本声明，并完成本次演练台授权。</p>";
 
 		function readWelcomeAck() {
@@ -7560,6 +7731,8 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 		function syncDrillGrant(attempt) {
 			const n = attempt || 0;
 			const gen = drillGrantGen;
+			/* 复位上一次调度的重试 timer,避免多次 writeDrillAuth 叠加链条 */
+			if (drillSyncRetryTimer) { try { clearTimeout(drillSyncRetryTimer); } catch { /* ignore */ } drillSyncRetryTimer = null; }
 			fetch("/dsh-purge/drill-grant", { method: "GET" })
 				.then((r) => r.json())
 				.then((r) => {
@@ -7578,7 +7751,12 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 				})
 				.catch(() => {
 					if (gen !== drillGrantGen) return;
-					if (n < 5) window.setTimeout(() => syncDrillGrant(n + 1), 400);
+					if (n < 5) {
+						drillSyncRetryTimer = window.setTimeout(() => {
+							drillSyncRetryTimer = null;
+							syncDrillGrant(n + 1);
+						}, 400);
+					}
 				});
 		}
 
@@ -7838,6 +8016,45 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 			return "";
 		}
 
+		function readSessionCwd(sess) {
+			if (!sess || typeof sess !== "object") return "";
+			try {
+				const pv = sess.projectionValues;
+				if (pv && typeof pv.cwd === "string" && pv.cwd.trim()) return pv.cwd.trim();
+			} catch { /* ignore */ }
+			try {
+				if (typeof sess.cwd === "string" && sess.cwd.trim()) return sess.cwd.trim();
+			} catch { /* ignore */ }
+			try {
+				const header = sess.header;
+				if (header && typeof header.cwd === "string" && header.cwd.trim()) return header.cwd.trim();
+			} catch { /* ignore */ }
+			return "";
+		}
+
+		function clientCurrentCwd() {
+			try {
+				const sessions = rewindSessions || (rewindHost && rewindHost.sessions);
+				if (!sessions) return "";
+				const sid = currentSessionId(sessions);
+				if (!sid) return "";
+				try {
+					const snap = typeof sessions.list?.getSnapshot === "function" ? sessions.list.getSnapshot() : null;
+					const sess = snap && snap.byId ? snap.byId[sid] : null;
+					const found = readSessionCwd(sess);
+					if (found) return found;
+				} catch { /* ignore */ }
+				try {
+					const actx = typeof sessions.scope === "function" ? sessions.scope(sid) : undefined;
+					const face = typeof sessions.sessionOf === "function" ? sessions.sessionOf(actx) : undefined;
+					const faceSnap = face && typeof face.getSnapshot === "function" ? face.getSnapshot() : face;
+					const found = readSessionCwd(faceSnap);
+					if (found) return found;
+				} catch { /* ignore */ }
+			} catch { /* ignore */ }
+			return "";
+		}
+
 		function isRedteamModeActive() {
 			try {
 				const sessions = rewindSessions || (rewindHost && rewindHost.sessions);
@@ -7856,10 +8073,16 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 					} catch { /* ignore */ }
 				}
 			} catch { /* ignore */ }
-			/* 新会话：模式下拉里的「红队模式」chip（选好但还没写入 session） */
+			/* 新会话：模式下拉里的「红队模式」chip（选好但还没写入 session）
+			 * 优先走语义化 data-* 挂点,其次 class 子串模糊匹配 + 文本兜底;
+			 * 不写死 CSS Module 哈希(HKgFRW_seat 这种每次构建都会变)。 */
 			try {
+				const semantic = document.querySelector(
+					"[data-agent-preset='redteam'], [data-preset-id='redteam'], [data-mode='redteam']"
+				);
+				if (semantic) return true;
 				const nodes = document.querySelectorAll(
-					"[class*='seatLabel'], [class*='HKgFRW_seat'], [class*='seat'][class*='Label'], button[class*='seat']",
+					"[class*='seat' i][class*='label' i], [class*='seatLabel' i], button[class*='seat' i], [role='button'][class*='seat' i]"
 				);
 				for (const el of nodes) {
 					const text = String(el.textContent || "").replace(/\s+/g, " ").trim();
@@ -7867,9 +8090,13 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 				}
 			} catch { /* ignore */ }
 			try {
-				const labels = document.querySelectorAll("[class*='PfFEtG_label'], [title*='红队'], [title*='RedTeam']");
+				const labels = document.querySelectorAll(
+					"[class*='label' i][class*='preset' i], [class*='presetLabel' i], [title*='红队'], [title*='RedTeam']"
+				);
 				for (const el of labels) {
-					if (isRedteamPresetId(el.textContent)) return true;
+					const text = String(el.textContent || "").trim();
+					if (/红队模式/.test(text) || /^RedTeam\b/i.test(text)) return true;
+					if (isRedteamPresetId(text)) return true;
 				}
 			} catch { /* ignore */ }
 			return false;
@@ -7911,17 +8138,10 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 			}).then((r) => r.json()).catch(() => null);
 		}
 
-		/** 同步探测（拦截 submit 时不能 await） */
-		function fetchEnvAdaptStatusSync() {
-			try {
-				const xhr = new XMLHttpRequest();
-				xhr.open("POST", "/redteam/api", false);
-				xhr.setRequestHeader("content-type", "application/json");
-				xhr.send(JSON.stringify({ op: "platformEnvAdaptStatus" }));
-				if (xhr.status >= 200 && xhr.status < 300) return JSON.parse(xhr.responseText);
-			} catch { /* ignore */ }
-			return null;
-		}
+		/** 同步探测的占位：不再做同步 XHR（会卡 UI 主线程、Chrome 已逐步弃用）。
+		 * 调用方 mustBlockSubmit 在 cache 过期/缺失时按"未知→保守 block"处理,
+		 * 同时 EnvAdaptSendGate 的 useEffect 轮询会异步 refresh,下次调用即可放行。 */
+		function fetchEnvAdaptStatusSync() { return null; }
 
 		/** 红队发送前门禁：未就绪 → 授权并打开环境适配；可确认跳过。 */
 		function EnvAdaptSendGate() {
@@ -7958,37 +8178,37 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 
 			const mustBlockSubmit = useCallback(() => {
 				if (!isRedteamModeActive()) return false;
-				let cached = cacheRef.current;
+				const cached = cacheRef.current;
+				/* cache 过期时触发异步刷新;本次调用按最后一次 cache 判断,未知保守 block */
 				if (!cached.at || Date.now() - cached.at > 2500) {
-					const fresh = fetchEnvAdaptStatusSync();
-					if (fresh) {
-						cached = {
-							at: Date.now(),
-							ready: !!fresh.ready,
-							skipped: !!fresh.skipped,
-						};
-						cacheRef.current = cached;
-						setStatus(fresh);
-					}
+					refresh().catch(() => {});
 				}
 				if (cached.ready) return false;
 				blockAndOpen();
 				return true;
-			}, [blockAndOpen]);
+			}, [blockAndOpen, refresh]);
 
-			/* 挂住宿主 SessionInputShell.submit —— 比点按钮启发式可靠 */
+			/* 挂住宿主 SessionInputShell.submit —— 比点按钮启发式可靠。
+			 * patch 必须可逆:存 origSubmit 到 WeakMap,unmount / 依赖变更时恢复,
+			 * 否则插件禁用后 shell.submit 还是我们的 wrapper,持死 mustBlockSubmit 闭包。 */
 			useEffect(() => {
-				const wrapped = new WeakSet();
+				const patched = new WeakMap();
+				const patchedShells = [];
 				const patchShell = (shell) => {
-					if (!shell || wrapped.has(shell)) return;
+					if (!shell || patched.has(shell)) return;
 					if (typeof shell.submit !== "function") return;
-					wrapped.add(shell);
-					const orig = shell.submit.bind(shell);
+					const origSubmit = shell.submit;
+					const origActionsSubmit = (shell.actions && typeof shell.actions.submit === "function")
+						? shell.actions.submit
+						: null;
+					patched.set(shell, { origSubmit, origActionsSubmit });
+					patchedShells.push(shell);
+					const bound = origSubmit.bind(shell);
 					shell.submit = function gatedSubmit(mode) {
 						try {
 							if (mustBlockSubmit()) return;
 						} catch { /* 门禁异常时不吞掉发送 */ }
-						return orig(mode);
+						return bound(mode);
 					};
 					if (shell.actions && typeof shell.actions === "object") {
 						shell.actions.submit = () => shell.submit("queue");
@@ -8004,7 +8224,18 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 				};
 				tick();
 				const iv = window.setInterval(tick, 400);
-				return () => window.clearInterval(iv);
+				return () => {
+					window.clearInterval(iv);
+					for (const shell of patchedShells) {
+						const info = patched.get(shell);
+						if (!info) continue;
+						try { shell.submit = info.origSubmit; } catch { /* ignore */ }
+						if (info.origActionsSubmit && shell.actions) {
+							try { shell.actions.submit = info.origActionsSubmit; } catch { /* ignore */ }
+						}
+					}
+					patchedShells.length = 0;
+				};
 			}, [mustBlockSubmit]);
 
 			useEffect(() => {
@@ -8314,17 +8545,29 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 			const [host, setHost] = useState(null);
 			useEffect(() => {
 				let dead = false;
+				let warnedMiss = false;
 				const ensure = () => {
 					if (dead || typeof document === "undefined") return;
-					const row = document.querySelector('[class*="heroWorkspaceRow"]');
+					/* 多路挂点兜底:语义化 data-* 优先,class 子串模糊匹配兜底(不绑定具体 CSS Module 哈希) */
+					const row =
+						document.querySelector('[data-dsh-hero-workspace-row]') ||
+						document.querySelector('[data-conversation-hero]') ||
+						document.querySelector('[class*="heroWorkspaceRow" i]') ||
+						document.querySelector('[class*="hero" i][class*="workspace" i][class*="row" i]');
 					if (!row) {
+						if (!warnedMiss) {
+							warnedMiss = true;
+							try { console.warn("[dsh-purge] HeroNewSessionMount: anchor row missing (host 可能改版)"); } catch { /* ignore */ }
+						}
 						setHost((prev) => (prev ? null : prev));
 						return;
 					}
+					warnedMiss = false;
 					let el = row.querySelector(":scope > .dshp-hero-chip");
 					if (!el) {
 						el = document.createElement("div");
 						el.className = "dshp-hero-chip";
+						el.setAttribute("data-testid", "dsh-purge-hero-chip");
 						row.appendChild(el);
 					}
 					setHost((prev) => (prev === el ? prev : el));
@@ -8365,17 +8608,29 @@ body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tert
 			const [host, setHost] = useState(null);
 			useEffect(() => {
 				let dead = false;
+				let warnedMiss = false;
 				const ensure = () => {
 					if (dead || typeof document === "undefined") return;
-					const row = document.querySelector("[data-conversation-tabs]");
+					/* 多路挂点兜底:data-* 优先,ARIA / class 子串兜底 */
+					const row =
+						document.querySelector("[data-conversation-tabs]") ||
+						document.querySelector("[data-conversation-tabrow]") ||
+						document.querySelector("[role='tablist'][aria-label*='对话' i]") ||
+						document.querySelector("[class*='conversation' i][class*='tab' i][class*='row' i]");
 					if (!row) {
+						if (!warnedMiss) {
+							warnedMiss = true;
+							try { console.warn("[dsh-purge] TabRowPurgeMount: tab row anchor missing"); } catch { /* ignore */ }
+						}
 						setHost((prev) => (prev ? null : prev));
 						return;
 					}
+					warnedMiss = false;
 					let el = row.querySelector(":scope > .dshp-tab-chip");
 					if (!el) {
 						el = document.createElement("div");
 						el.className = "dshp-tab-chip";
+						el.setAttribute("data-testid", "dsh-purge-tab-chip");
 						row.appendChild(el);
 					}
 					setHost((prev) => (prev === el ? prev : el));
