@@ -22,6 +22,12 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch upstream
           git checkout master
+          BEFORE=$(git rev-parse HEAD)
           git merge upstream/master --no-edit --no-ff
+          # GITHUB_TOKEN 没有 workflows 权限，推送 .github/workflows 的任何改动都会被 GitHub 拒绝。
+          # 本 fork 的 Release 工作流带 github.repository 判断，本来就不会执行，保持本地版本即可。
+          git rm -r --cached -q .github/workflows
+          git checkout "$BEFORE" -- .github/workflows
+          if ! git diff --cached --quiet; then git commit --amend --no-edit; fi
       - name: Push back
         run: git push origin master
