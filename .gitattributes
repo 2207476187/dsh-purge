@@ -1,0 +1,16 @@
+# 换行统一钉死在 LF：索引里本来就是 LF，显式声明后 Windows 上的 core.autocrlf
+# 不再让检出结果漂移（否则同一份文件在不同机器 md5 不同，比对与打补丁都会看花眼）。
+* text=auto eol=lf
+
+# 二进制：不要做文本转换，也不要尝试 diff
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.exe binary
+*.asar binary
+*.zip binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
