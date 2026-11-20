@@ -21,6 +21,7 @@
   "files": [
     "lib",
     "!lib/default-prompt-inject.md",
+    "!lib/default-prompt-inject.md.bak",
     "bin",
     "docs",
     "presets",
