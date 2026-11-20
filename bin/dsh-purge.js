@@ -23,6 +23,7 @@ function printStatus(state) {
   out.push(`  备份 / backup  ${state.has_backup ? "有 / yes" : "无 / no"}`);
   out.push(`  注入文件       ${state.override_path}`);
   out.push(`  注入状态       ${state.override_status}`);
+  if (state.host_note) out.push(`  [!] ${state.host_note}`);
   out.push("");
   out.push(`  补丁 ${state.patches_applied}/${core.ALL_PATCHES.length} 已清洗, ${state.patches_pending} 待清洗`);
   for (const p of core.ALL_PATCHES) {

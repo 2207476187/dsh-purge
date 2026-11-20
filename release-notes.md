@@ -7,6 +7,7 @@
 - 只读排查（读文件、看日志、查配置、检索）可直接进行；写入、删除、安装/卸载、改配置、提交推送、对外请求需先说明并等确认。
 - Style 段同步：先给结论与方案，再展开细节与原理。
 - 重新封装 `lib/asset-table.js`（明文 22,163 字符），`zh` / `en` 模板同步。
+- 修复 CLI 插件根发现：`.browser-build-tmp` / `_archive` 这类构建残留目录不再被当成宿主（原先 `--status` 会把它们认成插件根，报出与真实环境无关的补丁进度）；显式 `DSH_BASE` 现在优先于启发式探测（原先只在特定条件下才被采纳，等于忽略）；路径落在 `DSH_HOME` 下却不属于任何 profile 时，`--status` 会标注「宿主未验证」。
 
 ## English
 
@@ -15,6 +16,7 @@
 - Read-only investigation (files, logs, config, searching) may proceed directly; state-changing operations (writes, deletions, installs or uninstalls, config edits, commits and pushes, outbound requests) are explained first and executed after confirmation.
 - Style section aligned: conclusion and plan first, then details and reasoning.
 - Re-sealed `lib/asset-table.js` (22,163 chars of plaintext); `zh` / `en` templates updated to match.
+- Fix CLI host discovery: build leftovers (`.browser-build-tmp`, `_archive`) are no longer treated as the host — `--status` used to report patch progress against them, unrelated to the real install. An explicit `DSH_BASE` now wins over heuristics (it was previously only honored under narrow conditions, i.e. effectively ignored). Paths under `DSH_HOME` that belong to no profile are flagged as "host unverified".
 
 # 1.1.71
 
