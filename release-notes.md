@@ -10,6 +10,7 @@
 - `lib/asset-table.js` 重新封装（明文 25,319 字符），`zh` / `en` 模板同步。
 - 修复 CLI 插件根发现：`.browser-build-tmp` / `_archive` 这类构建残留目录不再被当成宿主（原先 `--status` 会把它们认成插件根，报出与真实环境无关的补丁进度）；显式 `DSH_BASE` 现在优先于启发式探测（原先只在特定条件下才被采纳，等于忽略）；路径落在 `DSH_HOME` 下却不属于任何 profile 时，`--status` 会标注「宿主未验证」。
 - 桌面安装改为注册表定位：便宜探测全部落空时读卸载登记的 `InstallLocation` / `DisplayIcon` / `UninstallString`，所以装在非默认盘符（如 `X:\`）也能报出 exe 与 `resources\app.asar`，并如实区分「已密封、无可打散装包」与「已解包、可打 N 处」。`--status` 不再因为 surface 是 web 就隐藏桌面信息。
+- 修复 CLI 选错目标：终端里 surface 是 web，只走 web 探测，宿主装在别的盘符时一个候选都摸不到，最后把 `~/.dsh` 下的构建残树当成插件根——`--apply` 会打进残树、真宿主纹丝不动，还显示成功。现在 web 只摸到残树时改用桌面安装里的真宿主；显式 `DSH_BASE`、`profiles/*`、便携版布局（`<目录>/.dsh/node_modules/@deepseek-ai`）均不被覆盖。
 - 测试与构建：提示词明文源纳入版本控制（clone 后可重封装），补 `.gitattributes` 固定 LF，新增零依赖 `npm test`。
 - 移除两个失效的 CI 工作流：`release.yml` 的仓库判断永远不成立（发布走手动），`sync-upstream.yml` 指向的上游仓库已不存在。
 
@@ -23,6 +24,7 @@
 - Re-sealed `lib/asset-table.js` (25,319 chars of plaintext); `zh` / `en` templates updated to match.
 - Fix CLI host discovery: build leftovers (`.browser-build-tmp`, `_archive`) are no longer treated as the host — `--status` used to report patch progress against them, unrelated to the real install. An explicit `DSH_BASE` now wins over heuristics (it was previously only honored under narrow conditions, i.e. effectively ignored). Paths under `DSH_HOME` that belong to no profile are flagged as "host unverified".
 - Desktop installs are now located through the registry: when every cheap probe fails, the uninstall entry's `InstallLocation` / `DisplayIcon` / `UninstallString` is consulted, so an install on a non-default drive (e.g. `X:\`) reports its exe and `resources\app.asar`, and clearly distinguishes "sealed, nothing patchable" from "unpacked, N targets". `--status` no longer hides desktop details just because the surface is web.
+- Fix the CLI picking the wrong target: in a terminal the surface is web, so only the web chain runs; when the host lives on another drive none of its candidates hit, and a build leftover under `~/.dsh` was taken for the plugin root — `--apply` wrote into the leftover while the real host stayed untouched, yet reported success. When the web chain only reaches a leftover, the real desktop base is used instead. An explicit `DSH_BASE`, any `profiles/*`, and the portable layout (`<dir>/.dsh/node_modules/@deepseek-ai`) are never overridden.
 - Tests and build: the prompt plaintext source is now version-controlled (a fresh clone can re-seal), `.gitattributes` pins LF, and a zero-dependency `npm test` was added.
 - Removed two non-functional CI workflows: `release.yml` guarded on a repository name it could never match (releases are manual), and `sync-upstream.yml` pointed at an upstream that no longer exists.
 
