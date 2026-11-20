@@ -10,7 +10,17 @@ function printStatus(state) {
   out.push("dsh-purge 状态 / Status");
   out.push("  宿主 / surface " + (state.surface || "web"));
   out.push("  DSH_HOME      " + state.dsh_home);
-  if (state.desktop_install) out.push("  桌面安装       " + state.desktop_install);
+  if (state.desktop_exe) {
+    const via = state.desktop_via_registry ? "（注册表定位）" : "";
+    out.push("  桌面安装       " + state.desktop_install + via);
+    out.push("  桌面 exe       " + state.desktop_exe);
+    if (state.desktop_asar) {
+      const packed = state.desktop_sealed
+        ? "已密封，无可打散装包 → 在应用内点「应用」解包"
+        : `已解包，可打 ${state.desktop_patchable.length} 处`;
+      out.push("  app.asar      " + state.desktop_asar + "  [" + packed + "]");
+    }
+  }
   if (state.ai_base) {
     out.push("  插件根 / root  " + state.ai_base);
     for (const [key, fp] of Object.entries(state.files)) {
