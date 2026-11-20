@@ -1,3 +1,21 @@
+# 1.1.72
+
+## 中文
+
+- 版本 **1.1.72**。
+- 默认提示词工作流改为「先给结论再动手」：问题 → 根因或依据 → 方案（含风险与影响面）→ 确认 → 执行。
+- 只读排查（读文件、看日志、查配置、检索）可直接进行；写入、删除、安装/卸载、改配置、提交推送、对外请求需先说明并等确认。
+- Style 段同步：先给结论与方案，再展开细节与原理。
+- 重新封装 `lib/asset-table.js`（明文 22,163 字符），`zh` / `en` 模板同步。
+
+## English
+
+- **1.1.72**.
+- Default prompt workflow now leads with the conclusion: problem → evidence or root cause → plan (including risks and blast radius) → confirmation → execution.
+- Read-only investigation (files, logs, config, searching) may proceed directly; state-changing operations (writes, deletions, installs or uninstalls, config edits, commits and pushes, outbound requests) are explained first and executed after confirmation.
+- Style section aligned: conclusion and plan first, then details and reasoning.
+- Re-sealed `lib/asset-table.js` (22,163 chars of plaintext); `zh` / `en` templates updated to match.
+
 # 1.1.71
 
 ## 中文
