@@ -6,7 +6,8 @@
 - 默认提示词工作流改为「先给结论再动手」：问题 → 根因或依据 → 方案（含风险与影响面）→ 确认 → 执行。
 - 只读排查（读文件、看日志、查配置、检索）可直接进行；写入、删除、安装/卸载、改配置、提交推送、对外请求需先说明并等确认。
 - Style 段同步：先给结论与方案，再展开细节与原理。
-- 重新封装 `lib/asset-table.js`（明文 22,163 字符），`zh` / `en` 模板同步。
+- 默认提示词新增「步骤间播报」：开头给结论之后，每次工具调用之间用一两句话说明刚发现什么、接下来做什么、为什么；明确禁止长时间静默后一次性交付。此条与「每轮一个完整成果」并存——边走边说，最后一次性交付成品。
+- `lib/asset-table.js` 重新封装（明文 25,319 字符），`zh` / `en` 模板同步。
 - 修复 CLI 插件根发现：`.browser-build-tmp` / `_archive` 这类构建残留目录不再被当成宿主（原先 `--status` 会把它们认成插件根，报出与真实环境无关的补丁进度）；显式 `DSH_BASE` 现在优先于启发式探测（原先只在特定条件下才被采纳，等于忽略）；路径落在 `DSH_HOME` 下却不属于任何 profile 时，`--status` 会标注「宿主未验证」。
 - 桌面安装改为注册表定位：便宜探测全部落空时读卸载登记的 `InstallLocation` / `DisplayIcon` / `UninstallString`，所以装在非默认盘符（如 `X:\`）也能报出 exe 与 `resources\app.asar`，并如实区分「已密封、无可打散装包」与「已解包、可打 N 处」。`--status` 不再因为 surface 是 web 就隐藏桌面信息。
 - 测试与构建：提示词明文源纳入版本控制（clone 后可重封装），补 `.gitattributes` 固定 LF，新增零依赖 `npm test`。
@@ -18,7 +19,8 @@
 - Default prompt workflow now leads with the conclusion: problem → evidence or root cause → plan (including risks and blast radius) → confirmation → execution.
 - Read-only investigation (files, logs, config, searching) may proceed directly; state-changing operations (writes, deletions, installs or uninstalls, config edits, commits and pushes, outbound requests) are explained first and executed after confirmation.
 - Style section aligned: conclusion and plan first, then details and reasoning.
-- Re-sealed `lib/asset-table.js` (22,163 chars of plaintext); `zh` / `en` templates updated to match.
+- Default prompt gains step-by-step narration: after the opening conclusion, one or two short sentences between tool calls — what was just found, what is being done next, and why. Working in silence through a long tool run and then dumping everything at once is explicitly ruled out, and this holds even when the turn must end with one complete outcome: narrate as you go, hand over the finished result at the end.
+- Re-sealed `lib/asset-table.js` (25,319 chars of plaintext); `zh` / `en` templates updated to match.
 - Fix CLI host discovery: build leftovers (`.browser-build-tmp`, `_archive`) are no longer treated as the host — `--status` used to report patch progress against them, unrelated to the real install. An explicit `DSH_BASE` now wins over heuristics (it was previously only honored under narrow conditions, i.e. effectively ignored). Paths under `DSH_HOME` that belong to no profile are flagged as "host unverified".
 - Desktop installs are now located through the registry: when every cheap probe fails, the uninstall entry's `InstallLocation` / `DisplayIcon` / `UninstallString` is consulted, so an install on a non-default drive (e.g. `X:\`) reports its exe and `resources\app.asar`, and clearly distinguishes "sealed, nothing patchable" from "unpacked, N targets". `--status` no longer hides desktop details just because the surface is web.
 - Tests and build: the prompt plaintext source is now version-controlled (a fresh clone can re-seal), `.gitattributes` pins LF, and a zero-dependency `npm test` was added.
