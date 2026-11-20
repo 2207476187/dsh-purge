@@ -28,7 +28,9 @@
   config:
     includeHarnessIdentity: false
     personaPrefix: ""
-    personaSuffix: Your working directory is {{cwd}}.
+    # dsh 0.2.1 起不再注册 {{cwd}}（只注册 provider / model），写这个变量会让提示词组装直接抛
+    # unknown prompt variable。工作目录由 harness 作为 required runtime context 下发，不丢信息。
+    personaSuffix: The working directory is provided by the harness runtime context.
 
 - id: dsh-purge
   inject: [systemPrompt, tools]
